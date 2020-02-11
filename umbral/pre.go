@@ -3,7 +3,7 @@ package umbral
 import (
 	"crypto/sha512"
 	"fmt"
-	"github.com/dongsam/goUmbral/field"
+	"github.com/b-harvest/goUmbral/field"
 	"golang.org/x/crypto/hkdf"
 	"hash"
 	"log"

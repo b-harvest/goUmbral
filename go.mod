@@ -1,4 +1,4 @@
-module github.com/dongsam/goUmbral
+module github.com/b-harvest/goUmbral
 
 go 1.13
 

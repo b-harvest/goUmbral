@@ -1,7 +1,7 @@
 package umbral
 
 import (
-	"github.com/dongsam/goUmbral/field"
+	"github.com/b-harvest/goUmbral/field"
 	"golang.org/x/crypto/chacha20poly1305"
 	"reflect"
 	"testing"

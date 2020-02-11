@@ -2,7 +2,7 @@ package umbral
 
 import (
 	"encoding/base64"
-	"github.com/dongsam/goUmbral/crypto"
+	"github.com/b-harvest/goUmbral/crypto"
 	"math/big"
 	"testing"
 )

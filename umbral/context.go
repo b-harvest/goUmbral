@@ -1,8 +1,8 @@
 package umbral
 
 import (
-	"github.com/dongsam/goUmbral/crypto"
-	"github.com/dongsam/goUmbral/field"
+	"github.com/b-harvest/goUmbral/crypto"
+	"github.com/b-harvest/goUmbral/field"
 	"math/big"
 )
 

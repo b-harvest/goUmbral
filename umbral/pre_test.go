@@ -3,8 +3,8 @@ package umbral
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/dongsam/goUmbral/crypto"
-	"github.com/dongsam/goUmbral/field"
+	"github.com/b-harvest/goUmbral/crypto"
+	"github.com/b-harvest/goUmbral/field"
 	"math/big"
 	"reflect"
 	"testing"
