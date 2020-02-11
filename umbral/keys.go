@@ -1,7 +1,7 @@
 package umbral
 
 import (
-	"goUmbral/field"
+	"github.com/dongsam/goUmbral/field"
 	"math/big"
 )
 

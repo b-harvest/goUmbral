@@ -2,7 +2,7 @@ package umbral
 
 import (
 	"crypto/cipher"
-	"goUmbral/field"
+	"github.com/dongsam/goUmbral/field"
 	"golang.org/x/crypto/chacha20poly1305"
 	"log"
 )
