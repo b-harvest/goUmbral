@@ -1,6 +1,8 @@
 package umbral
 
 import (
+	"github.com/stretchr/testify/require"
+	"math/rand"
 	"reflect"
 	"testing"
 )
@@ -24,12 +26,22 @@ func TestAPIBasics(t *testing.T) {
 		t.Errorf("Direct decryption failed")
 	}
 
-	kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, 10, 20)
+	const threshold = 10
+	kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
 
-	cFrags := make([]*CFrag, len(kFrags))
-	for i := range kFrags {
-		cFrags[i] = ReEncapsulate(kFrags[i], capsule)
+	cFrags := make([]*CFrag, threshold)
+
+	dest := make([]*KFrag, threshold)
+	perm := rand.Perm(threshold)
+	for i, v := range perm {
+		dest[v] = kFrags[i]
 	}
+
+	for i := range dest {
+		cFrags[i] = ReEncapsulate(dest[i], capsule)
+	}
+
+	require.Equal(t, len(dest), threshold)
 
 	testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
