@@ -50,8 +50,8 @@ func (key *UmbralCurveElement) Add(in *UmbralCurveElement) *UmbralCurveElement {
 // UmbralFieldElement
 
 func GenPrivateKey(cxt *Context) *UmbralFieldElement {
-	randoKey := field.GetRandomInt(cxt.targetField.FieldOrder)
-	e := cxt.targetField.NewElement(randoKey)
+	randomKey := field.GetRandomInt(cxt.targetField.FieldOrder)
+	e := cxt.targetField.NewElement(randomKey)
 	return &UmbralFieldElement{*e}
 }
 
