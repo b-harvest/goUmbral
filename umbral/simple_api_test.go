@@ -61,44 +61,75 @@ func TestAPIBasics2(t *testing.T) {
 
 	cxt := MakeDefaultContext()
 
-	privKeyAlice := GenPrivateKey(cxt)
-	pubKeyAlice := privKeyAlice.GetPublicKey(cxt)
+	// Label A
+	privKeyAliceLabelA := GenPrivateKey(cxt)
+	pubKeyAliceLabelA := privKeyAliceLabelA.GetPublicKey(cxt)
 
 	privKeyBob := GenPrivateKey(cxt)
 	pubKeyBob := privKeyBob.GetPublicKey(cxt)
 
-	plainText := []byte("attack at dawn")
-	cipherText, capsule := Encrypt(cxt, pubKeyAlice, plainText) // enrico
+	privKeyCarol := GenPrivateKey(cxt)
+	pubKeyCarol := privKeyCarol.GetPublicKey(cxt)
 
-	testDecrypt := DecryptDirect(cxt, capsule, privKeyAlice, cipherText)
+	plainText := []byte("Label A Data 1")
+	cipherText, capsule := Encrypt(cxt, pubKeyAliceLabelA, plainText) // enrico
+
+	testDecrypt := DecryptDirect(cxt, capsule, privKeyAliceLabelA, cipherText)
 
 	if !reflect.DeepEqual(plainText, testDecrypt) {
 		t.Errorf("Direct decryption failed")
 	}
 
 	const threshold = 10
-	kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
+	kFragsForBob := SplitReKey(cxt, privKeyAliceLabelA, pubKeyBob, threshold, 20)
 
-	cFrags := make([]*CFrag, threshold)
-
+	cFragsForBob := make([]*CFrag, threshold)
 	dest := make([]*KFrag, threshold)
 	perm := rand.Perm(threshold)
 	for i, v := range perm {
-		dest[v] = kFrags[i]
+		dest[v] = kFragsForBob[i]
 	}
 
 	for i := range dest {
-		cFrags[i] = ReEncapsulate(dest[i], capsule)
+		cFragsForBob[i] = ReEncapsulate(dest[i], capsule)
 	}
-
 	require.Equal(t, len(dest), threshold)
 
-	testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
+	testDecryptFrags := DecryptFragments(cxt, capsule, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
 		t.Errorf("Re-encapsulated fragment decryption failed")
 	}
+
+	const threshold2 = 15
+	kFragsForCarol := SplitReKey(cxt, privKeyAliceLabelA, pubKeyCarol, threshold2, 20)
+
+	cFragsForCarol := make([]*CFrag, threshold2)
+	dest = make([]*KFrag, threshold2)
+	perm = rand.Perm(threshold2)
+	for i, v := range perm {
+		dest[v] = kFragsForCarol[i]
+	}
+
+	for i := range dest {
+		cFragsForCarol[i] = ReEncapsulate(dest[i], capsule)
+	}
+	require.Equal(t, len(dest), threshold2)
+
+	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol, privKeyCarol, pubKeyAliceLabelA, cipherText)
+	if !reflect.DeepEqual(plainText, testDecryptFrags) {
+		t.Errorf("Re-encapsulated fragment decryption failed 2")
+	}
+
+	// occur panic, cFrags below threshold used
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("It should be panic, cFrags below threshold used")
+		}
+	}()
+	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol[:threshold2-1], privKeyCarol, pubKeyAliceLabelA, cipherText)
 }
 
+// WIP
 func TestAPIAdvanced(t *testing.T) {
 	random := cryptorand.Reader
 
@@ -107,7 +138,7 @@ func TestAPIAdvanced(t *testing.T) {
 	privKeyAliceRSA, err := rsa.GenerateKey(random, 256)
 	require.Nil(t, err)
 	pubKeyAliceRSA := privKeyAliceRSA.PublicKey
-	
+
 	//cxt := MakeDefaultContext()
 
 	//privKeyAlice := GenPrivateKey(cxt)
@@ -157,11 +188,11 @@ func TestAPIAdvanced(t *testing.T) {
 
 	plainTextM := []byte("confidential data")
 	cipherTextM := make([]byte, len(plainTextM))
-	block.Encrypt(cipherTextM, plainTextM) // 평문을 AES 알고리즘으로 암호화
+	block.Encrypt(cipherTextM, plainTextM)
 	fmt.Printf("%x\n", cipherTextM)
 
 	decryptedTextM := make([]byte, len(plainTextM))
-	block.Decrypt(decryptedTextM, cipherTextM) // AES 알고리즘으로 암호화된 데이터를 평문으로 복호화
+	block.Decrypt(decryptedTextM, cipherTextM)
 	fmt.Println(string(decryptedTextM))
 	require.Equal(t, string(decryptedTextM), plainTextM)
 
