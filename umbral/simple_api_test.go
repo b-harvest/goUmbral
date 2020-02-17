@@ -1,16 +1,12 @@
 package umbral
 
 import (
-	"crypto/aes"
-	cryptorand "crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"github.com/hallazzang/aria-go"
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"reflect"
 	"testing"
-	"time"
 	//"github.com/tendermint/tendermint/crypto"
 	//"github.com/tendermint/tendermint/crypto/ed25519"
 )
@@ -81,7 +77,8 @@ func TestAPIBasics2(t *testing.T) {
 	}
 
 	const threshold = 10
-	kFragsForBob := SplitReKey(cxt, privKeyAliceLabelA, pubKeyBob, threshold, 20)
+	const numSplits = 20
+	kFragsForBob := SplitReKey(cxt, privKeyAliceLabelA, pubKeyBob, threshold, numSplits)
 
 	cFragsForBob := make([]*CFrag, threshold)
 	dest := make([]*KFrag, threshold)
@@ -100,8 +97,9 @@ func TestAPIBasics2(t *testing.T) {
 		t.Errorf("Re-encapsulated fragment decryption failed")
 	}
 
+	// test for add policy to another Bob(Carol) without duplicated encryption
 	const threshold2 = 15
-	kFragsForCarol := SplitReKey(cxt, privKeyAliceLabelA, pubKeyCarol, threshold2, 20)
+	kFragsForCarol := SplitReKey(cxt, privKeyAliceLabelA, pubKeyCarol, threshold2, numSplits)
 
 	cFragsForCarol := make([]*CFrag, threshold2)
 	dest = make([]*KFrag, threshold2)
@@ -120,7 +118,7 @@ func TestAPIBasics2(t *testing.T) {
 		t.Errorf("Re-encapsulated fragment decryption failed 2")
 	}
 
-	// occur panic, cFrags below threshold used
+	// cFrags below threshold used case, occur panic
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("It should be panic, cFrags below threshold used")
@@ -130,97 +128,97 @@ func TestAPIBasics2(t *testing.T) {
 }
 
 // WIP
-func TestAPIAdvanced(t *testing.T) {
-	random := cryptorand.Reader
-
-	//privKeyAliceAcc := ed25519.GenPrivKey()
-	//pubKeyAliceAcc := privKeyAliceAcc.PubKey()
-	privKeyAliceRSA, err := rsa.GenerateKey(random, 256)
-	require.Nil(t, err)
-	pubKeyAliceRSA := privKeyAliceRSA.PublicKey
-
-	//cxt := MakeDefaultContext()
-
-	//privKeyAlice := GenPrivateKey(cxt)
-	//pubKeyAlice := privKeyAlice.GetPublicKey(cxt)
-
-	//privKeyBob := GenPrivateKey(cxt)
-	//pubKeyBob := privKeyBob.GetPublicKey(cxt)
-
-
-	// create random symmetric symKey
-	symKey := make([]byte, 16)
-	//rand.Seed(time.Now().UnixNano())
-	rand.Seed(time.Now().UnixNano())  // TODO: seed using Alice Key ?
-	rand.Read(symKey)
-
-	//msg := "symMsg1234567890"    // 16bytes
-
-	block, err := aes.NewCipher([]byte(symKey))
-	require.Nil(t, err)
-
-	//cipherText := make([]byte, len(msg))
-	//block.Encrypt(cipherText, []byte(msg))
-	//fmt.Printf("%x\n", cipherText)
-	//
-	//plainText := make([]byte, len(msg))
-	//block.Decrypt(plainText, cipherText)
-	//fmt.Println(string(plainText))
-	//require.Equal(t, string(plainText), msg)
-
-
-	encyptedSymKey, err := rsa.EncryptPKCS1v15(random, &pubKeyAliceRSA, symKey)
-	require.Nil(t, err)
-	decryptedSymKey, err := rsa.DecryptPKCS1v15(random, privKeyAliceRSA, encyptedSymKey)
-	require.Nil(t, err)
-
-	require.Equal(t, symKey, decryptedSymKey)
-
-
-
-	//cipherText, capsule := Encrypt(cxt, pubKeyAlice, symKey)
-	//testDecrypt := DecryptDirect(cxt, capsule, privKeyAlice, cipherText)
-	//
-	//if !reflect.DeepEqual(symKey, testDecrypt) {
-	//	t.Errorf("Direct decryption failed")
-	//}
-
-
-	plainTextM := []byte("confidential data")
-	cipherTextM := make([]byte, len(plainTextM))
-	block.Encrypt(cipherTextM, plainTextM)
-	fmt.Printf("%x\n", cipherTextM)
-
-	decryptedTextM := make([]byte, len(plainTextM))
-	block.Decrypt(decryptedTextM, cipherTextM)
-	fmt.Println(string(decryptedTextM))
-	require.Equal(t, string(decryptedTextM), plainTextM)
-
-
-	//
-	//const threshold = 10
-	//kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
-	//
-	//cFrags := make([]*CFrag, threshold)
-	//
-	//dest := make([]*KFrag, threshold)
-	//perm := rand.Perm(threshold)
-	//for i, v := range perm {
-	//	dest[v] = kFrags[i]
-	//}
-	//
-	//for i := range dest {
-	//	cFrags[i] = ReEncapsulate(dest[i], capsule)
-	//}
-	//
-	//require.Equal(t, len(dest), threshold)
-	//
-	//testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
-	//if !reflect.DeepEqual(plainText, testDecryptFrags) {
-	//	t.Errorf("Re-encapsulated fragment decryption failed")
-	//}
-}
-
+//func TestAPIAdvanced(t *testing.T) {
+//	random := cryptorand.Reader
+//
+//	//privKeyAliceAcc := ed25519.GenPrivKey()
+//	//pubKeyAliceAcc := privKeyAliceAcc.PubKey()
+//	privKeyAliceRSA, err := rsa.GenerateKey(random, 256)
+//	require.Nil(t, err)
+//	pubKeyAliceRSA := privKeyAliceRSA.PublicKey
+//
+//	//cxt := MakeDefaultContext()
+//
+//	//privKeyAlice := GenPrivateKey(cxt)
+//	//pubKeyAlice := privKeyAlice.GetPublicKey(cxt)
+//
+//	//privKeyBob := GenPrivateKey(cxt)
+//	//pubKeyBob := privKeyBob.GetPublicKey(cxt)
+//
+//
+//	// create random symmetric symKey
+//	symKey := make([]byte, 16)
+//	//rand.Seed(time.Now().UnixNano())
+//	rand.Seed(time.Now().UnixNano())  // TODO: seed using Alice Key ?
+//	rand.Read(symKey)
+//
+//	//msg := "symMsg1234567890"    // 16bytes
+//
+//	block, err := aes.NewCipher([]byte(symKey))
+//	require.Nil(t, err)
+//
+//	//cipherText := make([]byte, len(msg))
+//	//block.Encrypt(cipherText, []byte(msg))
+//	//fmt.Printf("%x\n", cipherText)
+//	//
+//	//plainText := make([]byte, len(msg))
+//	//block.Decrypt(plainText, cipherText)
+//	//fmt.Println(string(plainText))
+//	//require.Equal(t, string(plainText), msg)
+//
+//
+//	encyptedSymKey, err := rsa.EncryptPKCS1v15(random, &pubKeyAliceRSA, symKey)
+//	require.Nil(t, err)
+//	decryptedSymKey, err := rsa.DecryptPKCS1v15(random, privKeyAliceRSA, encyptedSymKey)
+//	require.Nil(t, err)
+//
+//	require.Equal(t, symKey, decryptedSymKey)
+//
+//
+//
+//	//cipherText, capsule := Encrypt(cxt, pubKeyAlice, symKey)
+//	//testDecrypt := DecryptDirect(cxt, capsule, privKeyAlice, cipherText)
+//	//
+//	//if !reflect.DeepEqual(symKey, testDecrypt) {
+//	//	t.Errorf("Direct decryption failed")
+//	//}
+//
+//
+//	plainTextM := []byte("confidential data")
+//	cipherTextM := make([]byte, len(plainTextM))
+//	block.Encrypt(cipherTextM, plainTextM)
+//	fmt.Printf("%x\n", cipherTextM)
+//
+//	decryptedTextM := make([]byte, len(plainTextM))
+//	block.Decrypt(decryptedTextM, cipherTextM)
+//	fmt.Println(string(decryptedTextM))
+//	require.Equal(t, string(decryptedTextM), plainTextM)
+//
+//
+//	//
+//	//const threshold = 10
+//	//kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
+//	//
+//	//cFrags := make([]*CFrag, threshold)
+//	//
+//	//dest := make([]*KFrag, threshold)
+//	//perm := rand.Perm(threshold)
+//	//for i, v := range perm {
+//	//	dest[v] = kFrags[i]
+//	//}
+//	//
+//	//for i := range dest {
+//	//	cFrags[i] = ReEncapsulate(dest[i], capsule)
+//	//}
+//	//
+//	//require.Equal(t, len(dest), threshold)
+//	//
+//	//testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
+//	//if !reflect.DeepEqual(plainText, testDecryptFrags) {
+//	//	t.Errorf("Re-encapsulated fragment decryption failed")
+//	//}
+//}
+//
 
 
 func TestAria(t *testing.T) {
