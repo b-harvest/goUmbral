@@ -68,7 +68,9 @@ func TestAPIBasics2(t *testing.T) {
 	pubKeyCarol := privKeyCarol.GetPublicKey(cxt)
 
 	plainText := []byte("Label A Data 1")
+	plainText2 := []byte("Label A Data 2")
 	cipherText, capsule := Encrypt(cxt, pubKeyAliceLabelA, plainText) // enrico
+	cipherText2, capsule2 := Encrypt(cxt, pubKeyAliceLabelA, plainText2) // enrico
 
 	testDecrypt := DecryptDirect(cxt, capsule, privKeyAliceLabelA, cipherText)
 
@@ -92,10 +94,20 @@ func TestAPIBasics2(t *testing.T) {
 	}
 	require.Equal(t, len(dest), threshold)
 
+	// success
 	testDecryptFrags := DecryptFragments(cxt, capsule, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
 		t.Errorf("Re-encapsulated fragment decryption failed")
 	}
+
+	// cFragsForBob is not ReEncapsulated for capsule2 but capsule case, occur panic
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("It should be panic, cFragsForBob is not ReEncapsulated for capsule2")
+		}
+	}()
+	testDecryptFrags2 := DecryptFragments(cxt, capsule2, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText2)
+	require.Nil(t, testDecryptFrags2)
 
 	// test for add policy to another Bob(Carol) without duplicated encryption
 	const threshold2 = 15
@@ -115,7 +127,7 @@ func TestAPIBasics2(t *testing.T) {
 
 	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol, privKeyCarol, pubKeyAliceLabelA, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
-		t.Errorf("Re-encapsulated fragment decryption failed 2")
+		t.Errorf("Re-encapsulated fragment decryption failed 3")
 	}
 
 	// cFrags below threshold used case, occur panic
