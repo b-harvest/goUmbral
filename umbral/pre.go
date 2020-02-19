@@ -64,6 +64,13 @@ func DecryptFragments(cxt *Context, capsule *Capsule, reKeyFrags []*CFrag, privK
 	return dem.decrypt(cipherText, capsuleBytes)
 }
 
+func DecryptFragmentsWithRecover(ctx *Context, capsule *Capsule, reKeyFrags []*CFrag, privKey *UmbralFieldElement, origPubKey *UmbralCurveElement, cipherText []byte) (res []byte, r interface{}) {
+	defer func() {
+		r = recover()
+	}()
+	return DecryptFragments(ctx, capsule, reKeyFrags, privKey, origPubKey, cipherText), r
+}
+
 func hornerPolyEval(poly []*field.ModInt, x *field.ModInt) *field.ModInt {
 	result := poly[0]
 	for i := 1; i < len(poly); i++ {

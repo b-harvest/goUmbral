@@ -139,6 +139,138 @@ func TestAPIBasics2(t *testing.T) {
 	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol[:threshold2-1], privKeyCarol, pubKeyAliceLabelA, cipherText)
 }
 
+func ReEncapsulateWithProxyNodes(kFrags []*KFrag, capsule *Capsule, threshold, numSplits int) []*CFrag {
+	proxyNodes := make([]*KFrag, threshold)
+	cFrags := make([]*CFrag, threshold)
+
+	// randomly selected proxy nodes for threshold
+	perm := rand.Perm(numSplits)
+	for i, v := range perm[:threshold] {
+		proxyNodes[i] = kFrags[v]
+	}
+
+	// kFrags -> cFrags on each proxy nodes
+	for i := range proxyNodes {
+		cFrags[i] = ReEncapsulate(proxyNodes[i], capsule)
+	}
+	return cFrags
+}
+
+func TestAPIBasics3(t *testing.T) {
+
+	cxt := MakeDefaultContext()
+
+	// Label X
+	privKeyAliceLabelX := GenPrivateKey(cxt)
+	pubKeyAliceLabelX := privKeyAliceLabelX.GetPublicKey(cxt)
+
+	// Label Y
+	privKeyAliceLabelY := GenPrivateKey(cxt)
+	pubKeyAliceLabelY := privKeyAliceLabelY.GetPublicKey(cxt)
+
+
+	// Bob
+	privKeyBob := GenPrivateKey(cxt)
+	pubKeyBob := privKeyBob.GetPublicKey(cxt)
+
+	data1 := []byte("Data 1")
+	data2 := []byte("Data 2")
+
+	// encrypt on Alice ( enrico )
+	EncryptedData1WithX, capsule1X := Encrypt(cxt, pubKeyAliceLabelX, data1)
+	EncryptedData2WithX, capsule2X := Encrypt(cxt, pubKeyAliceLabelX, data2)
+	EncryptedData1WithY, capsule1Y := Encrypt(cxt, pubKeyAliceLabelY, data1)
+	EncryptedData2WithY, capsule2Y := Encrypt(cxt, pubKeyAliceLabelY, data2)
+
+	const threshold = 15
+	const numSplits = 20
+
+	// Testcases on LabelX
+
+	// split key on Alice, and distribute to proxy nodes
+	kFragsX := SplitReKey(cxt, privKeyAliceLabelX, pubKeyBob, threshold, numSplits)
+	kFragsY := SplitReKey(cxt, privKeyAliceLabelY, pubKeyBob, threshold, numSplits)
+
+	// Bob request cFrags to proxy nodes
+	cFragsX1X := ReEncapsulateWithProxyNodes(kFragsX, capsule1X, threshold, numSplits)
+	cFragsX2X := ReEncapsulateWithProxyNodes(kFragsX, capsule2X, threshold, numSplits)
+	cFragsY1Y := ReEncapsulateWithProxyNodes(kFragsY, capsule1Y, threshold, numSplits)
+	cFragsY2Y := ReEncapsulateWithProxyNodes(kFragsY, capsule2Y, threshold, numSplits)
+
+	// Bad cases
+	cFragsX1Y := ReEncapsulateWithProxyNodes(kFragsX, capsule1Y, threshold, numSplits)
+	cFragsX2Y := ReEncapsulateWithProxyNodes(kFragsX, capsule2Y, threshold, numSplits)
+	cFragsY1X := ReEncapsulateWithProxyNodes(kFragsY, capsule1X, threshold, numSplits)
+	cFragsY2X := ReEncapsulateWithProxyNodes(kFragsY, capsule2X, threshold, numSplits)
+
+	// result
+
+	// success cases
+	testDecryptFragsData1LabelX, r := DecryptFragmentsWithRecover(cxt, capsule1X, cFragsX1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithX)
+	require.Nil(t, r)
+	require.Equal(t, data1, testDecryptFragsData1LabelX)
+
+	testDecryptFragsData2LabelX, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
+	require.Nil(t, r)
+	require.Equal(t, data2, testDecryptFragsData2LabelX)
+
+ 	testDecryptFragsData1LabelY, r := DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsY1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	require.Nil(t, r)
+	require.Equal(t, data1, testDecryptFragsData1LabelY)
+
+	testDecryptFragsData2LabelY, r := DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsY2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
+	require.Nil(t, r)
+	require.Equal(t, data2, testDecryptFragsData2LabelY)
+
+	// fail cases
+	d, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithX)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithX)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	// fail, bad cases
+	d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
+	require.Equal(t, r, "Failed DEM decryption")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithY)
+	require.Equal(t, r, "Failed DEM decryption")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	require.Equal(t, r, "Failed DEM decryption")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
+	require.Equal(t, r, "Failed DEM decryption")
+	require.Nil(t, d)
+
+	d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
+	require.Equal(t, r, "Failed decapulation check")
+	require.Nil(t, d)
+
+}
+
+
 // WIP
 //func TestAPIAdvanced(t *testing.T) {
 //	random := cryptorand.Reader
