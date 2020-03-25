@@ -32,7 +32,7 @@ func (c *Capsule) verify(cxt *Context) bool {
 	return l.IsValEqual(&r.PointLike)
 }
 
-func Encrypt(cxt *Context, pubKey *UmbralCurveElement, plainText []byte) ([]byte, *Capsule) {
+func Encrypt(cxt *Context, pubKey *UmbralCurveElement, plainText []byte) ([]byte, *Capsule, *DEM) {
 
 	key, capsule := encapsulate(cxt, pubKey)
 
@@ -41,7 +41,7 @@ func Encrypt(cxt *Context, pubKey *UmbralCurveElement, plainText []byte) ([]byte
 	dem := MakeDEM(key)
 	cypher := dem.encrypt(plainText, capsuleBytes)
 
-	return cypher, capsule
+	return cypher, capsule, dem
 }
 
 func DecryptDirect(cxt *Context, capsule *Capsule, privKey *UmbralFieldElement, cipherText []byte) []byte {

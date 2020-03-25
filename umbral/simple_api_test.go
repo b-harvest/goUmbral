@@ -43,7 +43,7 @@ func TestPubKeySecp256k1Address(t *testing.T) {
 	for _, dt := range secpDataTable {
 		tPrivKey, _ := hex.DecodeString(dt.priv)
 		//pubB, _ := hex.DecodeString(d.pub)
-
+		require.Equal(t, tPrivKey, dt.privBytes)
 		var priv secp256k1.PrivKeySecp256k1
 		copy(priv[:], tPrivKey)
 
@@ -88,7 +88,7 @@ func TestAPIBasics(t *testing.T) {
 	pubKeyBob := privKeyBob.GetPublicKey(ctx)
 
 	plainText := []byte("attack at dawn")
-	cipherText, capsule := Encrypt(ctx, pubKeyAlice, plainText) // enrico
+	cipherText, capsule, _ := Encrypt(ctx, pubKeyAlice, plainText) // enrico
 
 	testDecrypt := DecryptDirect(ctx, capsule, privKeyAlice, cipherText)
 
@@ -135,8 +135,8 @@ func TestAPIBasics2(t *testing.T) {
 
 	plainText := []byte("Label A Data 1")
 	plainText2 := []byte("Label A Data 2")
-	cipherText, capsule := Encrypt(ctx, pubKeyAliceLabelA, plainText) // enrico
-	cipherText2, capsule2 := Encrypt(ctx, pubKeyAliceLabelA, plainText2) // enrico
+	cipherText, capsule, _ := Encrypt(ctx, pubKeyAliceLabelA, plainText) // enrico
+	cipherText2, capsule2, _ := Encrypt(ctx, pubKeyAliceLabelA, plainText2) // enrico
 
 	testDecrypt := DecryptDirect(ctx, capsule, privKeyAliceLabelA, cipherText)
 
@@ -243,10 +243,10 @@ func TestAPIBasics3(t *testing.T) {
 	data2 := []byte("Data 2")
 
 	// encrypt on Alice ( enrico )
-	EncryptedData1WithX, capsule1X := Encrypt(cxt, pubKeyAliceLabelX, data1)
-	EncryptedData2WithX, capsule2X := Encrypt(cxt, pubKeyAliceLabelX, data2)
-	EncryptedData1WithY, capsule1Y := Encrypt(cxt, pubKeyAliceLabelY, data1)
-	EncryptedData2WithY, capsule2Y := Encrypt(cxt, pubKeyAliceLabelY, data2)
+	EncryptedData1WithX, capsule1X, _ := Encrypt(cxt, pubKeyAliceLabelX, data1)
+	EncryptedData2WithX, capsule2X, _ := Encrypt(cxt, pubKeyAliceLabelX, data2)
+	EncryptedData1WithY, capsule1Y, _ := Encrypt(cxt, pubKeyAliceLabelY, data1)
+	EncryptedData2WithY, capsule2Y, _ := Encrypt(cxt, pubKeyAliceLabelY, data2)
 
 	const threshold = 15
 	const numSplits = 20
@@ -355,10 +355,18 @@ func TestAPIBasics4(t *testing.T) {
 
 	data1 := []byte("Data 1")
 	data2 := []byte("Data 2")
+	data2stream := []byte("Data 2 stream")
 
-	// encrypt on Alice ( enrico )
-	EncryptedData1, capsule1 := Encrypt(cxt, pubKeyAliceLabelX, data1)
-	EncryptedData2, capsule2 := Encrypt(cxt, pubKeyAliceLabelX, data2)
+	// encrypt on Alice
+	EncryptedData1, capsule1, _ := Encrypt(cxt, pubKeyAliceLabelX, data1)
+	EncryptedData2, capsule2, dem2 := Encrypt(cxt, pubKeyAliceLabelX, data2)
+
+	// encrypt reuse dem sym key for streaming data
+	//key2, capsule2 := encapsulate(cxt, pubKeyAliceLabelX)
+	//capsule2Bytes := capsule2.toBytes()
+	//dem := MakeDEM(key2)
+	EncryptedData2stream := dem2.encrypt(data2stream, capsule2.toBytes())
+
 
 	const threshold = 15
 	const numSplits = 20
@@ -391,7 +399,6 @@ func TestAPIBasics4(t *testing.T) {
 	require.Nil(t, r)
 	require.Equal(t, data1, testDecryptFragsC1)
 
-
 	testDecryptFragsB2, r := DecryptFragmentsWithRecover(cxt, capsule2, cFragsB2, privKeyBob, pubKeyAliceLabelX, EncryptedData2)
 	require.Nil(t, r)
 	require.Equal(t, data2, testDecryptFragsB2)
@@ -400,69 +407,17 @@ func TestAPIBasics4(t *testing.T) {
 	require.Nil(t, r)
 	require.Equal(t, data2, testDecryptFragsC2)
 
+	testDecryptFragsB2s, r := DecryptFragmentsWithRecover(cxt, capsule2, cFragsB2, privKeyBob, pubKeyAliceLabelX, EncryptedData2stream)
+	require.Nil(t, r)
+	require.Equal(t, data2stream, testDecryptFragsB2s)
+
+	testDecryptFragsC2s, r := DecryptFragmentsWithRecover(cxt, capsule2, cFragsC2, privKeyCarol, pubKeyAliceLabelX, EncryptedData2stream)
+	require.Nil(t, r)
+	require.Equal(t, data2stream, testDecryptFragsC2s)
 
 	d, r := DecryptFragmentsWithRecover(cxt, capsule1, cFragsC1, privKeyCarol, pubKeyAliceLabelX, EncryptedData2)
 	require.Equal(t, r, "Failed DEM decryption")
 	require.Nil(t, d)
-
-
-	//testDecryptFragsData2LabelX, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
-	//require.Nil(t, r)
-	//require.Equal(t, data2, testDecryptFragsData2LabelX)
-	//
-	//testDecryptFragsData1LabelY, r := DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsY1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
-	//require.Nil(t, r)
-	//require.Equal(t, data1, testDecryptFragsData1LabelY)
-	//
-	//testDecryptFragsData2LabelY, r := DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsY2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
-	//require.Nil(t, r)
-	//require.Equal(t, data2, testDecryptFragsData2LabelY)
-	//
-	//// fail cases
-	//d, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithX)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithX)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//// fail, bad cases
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
-	//require.Equal(t, r, "Failed DEM decryption")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithY)
-	//require.Equal(t, r, "Failed DEM decryption")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
-	//require.Equal(t, r, "Failed DEM decryption")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
-	//require.Equal(t, r, "Failed DEM decryption")
-	//require.Nil(t, d)
-	//
-	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
-	//require.Equal(t, r, "Failed decapulation check")
-	//require.Nil(t, d)
 
 }
 
