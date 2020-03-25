@@ -30,7 +30,7 @@ func toUmbralBytes(elem *field.CurveElement, compressed bool, keySize int) []byt
 
 // TODO: currently implementing this on UmbralCurveElement - as opposed to CurveElement - because pyUmbral has a very specific way of serializing
 func (key *UmbralCurveElement) toBytes(compressed bool) []byte {
-	return toUmbralBytes(&key.CurveElement, true, key.ElemParams.GetTargetField().LengthInBytes)
+	return toUmbralBytes(&key.CurveElement, compressed, key.ElemParams.GetTargetField().LengthInBytes)
 }
 
 func (key *UmbralCurveElement) MulInt(mi *field.ModInt) *UmbralCurveElement {
@@ -52,6 +52,14 @@ func (key *UmbralCurveElement) Add(in *UmbralCurveElement) *UmbralCurveElement {
 func GenPrivateKey(cxt *Context) *UmbralFieldElement {
 	randomKey := field.GetRandomInt(cxt.targetField.FieldOrder)
 	e := cxt.targetField.NewElement(randomKey)
+	return &UmbralFieldElement{*e}
+}
+
+func GenPrivateKeyFromBytes(cxt *Context, privKeyBytes []byte) *UmbralFieldElement {
+	//randomKey := field.GetRandomInt(cxt.targetField.FieldOrder)
+	key := new(big.Int)
+	key.SetBytes(privKeyBytes)
+	e := cxt.targetField.NewElement(key)
 	return &UmbralFieldElement{*e}
 }
 

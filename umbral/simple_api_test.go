@@ -1,37 +1,103 @@
 package umbral
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"github.com/hallazzang/aria-go"
 	"github.com/stretchr/testify/require"
+	"github.com/tendermint/tendermint/crypto/secp256k1"
+	"math/big"
 	"math/rand"
 	"reflect"
 	"testing"
-	//"github.com/tendermint/tendermint/crypto"
-	//"github.com/tendermint/tendermint/crypto/ed25519"
 )
+
+// from github.com/tendermint/tendermint/crypto/secp256k1/secp256k1_test.go
+type keyData struct {
+	priv string
+	pub  string
+	addr string
+	privBytes []byte
+}
+
+var secpDataTable = []keyData{
+	{
+		priv: "a96e62ed3955e65be32703f12d87b6b5cf26039ecfa948dc5107a495418e5330",
+		pub:  "02950e1cdfcb133d6024109fd489f734eeb4502418e538c28481f22bce276f248c",
+		addr: "1CKZ9Nx4zgds8tU7nJHotKSDr4a9bYJCa3",
+		privBytes: []byte{169,110,98,237,57,85,230,91,227,39,3,241,45,135,182,181,207,38,3,158,207,169,72,220,81,7,164,149,65,142,83,48},
+	},
+}
+
+func toByteArray(input secp256k1.PubKeySecp256k1) []byte {
+	var output []byte
+	for _, v := range input {
+		output = append(output, v)
+	}
+	return output
+}
+
+func TestPubKeySecp256k1Address(t *testing.T) {
+	ctx := MakeDefaultContext()
+	for _, dt := range secpDataTable {
+		tPrivKey, _ := hex.DecodeString(dt.priv)
+		//pubB, _ := hex.DecodeString(d.pub)
+
+		var priv secp256k1.PrivKeySecp256k1
+		copy(priv[:], tPrivKey)
+
+		d := new(big.Int)
+		d.SetBytes(tPrivKey)
+
+		tPubKey := priv.PubKey()
+		tPubKeyBytes, _ := tPubKey.(secp256k1.PubKeySecp256k1)
+		tPubKeyBytes2 := toByteArray(tPubKeyBytes)
+		//tPubKeyBytes3 := tPubKeyBytes.Bytes()
+
+		uPrivKey := GenPrivateKeyFromBytes(ctx, dt.privBytes)
+		uPubKey := uPrivKey.GetPublicKey(ctx)
+		uPubkeyBytes := uPubKey.toBytes(true)
+		res := bytes.Compare(tPubKeyBytes2, uPubkeyBytes)
+		require.Equal(t, res, 0)
+		require.Equal(t, tPubKeyBytes2, uPubkeyBytes)
+	}
+}
+
+func TestKeyPair(t *testing.T) {
+
+	ctx := MakeDefaultContext()
+	privKeyAlice := GenPrivateKey(ctx)
+	pubKeyAlice := privKeyAlice.GetPublicKey(ctx)
+
+	pkey := []byte{169,110,98,237,57,85,230,91,227,39,3,241,45,135,182,181,207,38,3,158,207,169,72,220,81,7,164,149,65,142,83,48}
+	privKeyAlice2 := GenPrivateKeyFromBytes(ctx, pkey)
+	pubKeyAlice2 := privKeyAlice2.GetPublicKey(ctx)
+	pubkeyBytes2 := pubKeyAlice2.toBytes(true)
+	fmt.Println(privKeyAlice, pubKeyAlice, privKeyAlice2, pubKeyAlice2, pubkeyBytes2)
+}
 
 func TestAPIBasics(t *testing.T) {
 
-	cxt := MakeDefaultContext()
+	ctx := MakeDefaultContext()
 
-	privKeyAlice := GenPrivateKey(cxt)
-	pubKeyAlice := privKeyAlice.GetPublicKey(cxt)
+	privKeyAlice := GenPrivateKey(ctx)
+	pubKeyAlice := privKeyAlice.GetPublicKey(ctx)
 
-	privKeyBob := GenPrivateKey(cxt)
-	pubKeyBob := privKeyBob.GetPublicKey(cxt)
+	privKeyBob := GenPrivateKey(ctx)
+	pubKeyBob := privKeyBob.GetPublicKey(ctx)
 
 	plainText := []byte("attack at dawn")
-	cipherText, capsule := Encrypt(cxt, pubKeyAlice, plainText) // enrico
+	cipherText, capsule := Encrypt(ctx, pubKeyAlice, plainText) // enrico
 
-	testDecrypt := DecryptDirect(cxt, capsule, privKeyAlice, cipherText)
+	testDecrypt := DecryptDirect(ctx, capsule, privKeyAlice, cipherText)
 
 	if !reflect.DeepEqual(plainText, testDecrypt) {
 		t.Errorf("Direct decryption failed")
 	}
 
 	const threshold = 10
-	kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
+	kFrags := SplitReKey(ctx, privKeyAlice, pubKeyBob, threshold, 20)
 
 	cFrags := make([]*CFrag, threshold)
 
@@ -47,7 +113,7 @@ func TestAPIBasics(t *testing.T) {
 
 	require.Equal(t, len(dest), threshold)
 
-	testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
+	testDecryptFrags := DecryptFragments(ctx, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
 		t.Errorf("Re-encapsulated fragment decryption failed")
 	}
@@ -55,24 +121,24 @@ func TestAPIBasics(t *testing.T) {
 
 func TestAPIBasics2(t *testing.T) {
 
-	cxt := MakeDefaultContext()
+	ctx := MakeDefaultContext()
 
 	// Label A
-	privKeyAliceLabelA := GenPrivateKey(cxt)
-	pubKeyAliceLabelA := privKeyAliceLabelA.GetPublicKey(cxt)
+	privKeyAliceLabelA := GenPrivateKey(ctx)
+	pubKeyAliceLabelA := privKeyAliceLabelA.GetPublicKey(ctx)
 
-	privKeyBob := GenPrivateKey(cxt)
-	pubKeyBob := privKeyBob.GetPublicKey(cxt)
+	privKeyBob := GenPrivateKey(ctx)
+	pubKeyBob := privKeyBob.GetPublicKey(ctx)
 
-	privKeyCarol := GenPrivateKey(cxt)
-	pubKeyCarol := privKeyCarol.GetPublicKey(cxt)
+	privKeyCarol := GenPrivateKey(ctx)
+	pubKeyCarol := privKeyCarol.GetPublicKey(ctx)
 
 	plainText := []byte("Label A Data 1")
 	plainText2 := []byte("Label A Data 2")
-	cipherText, capsule := Encrypt(cxt, pubKeyAliceLabelA, plainText) // enrico
-	cipherText2, capsule2 := Encrypt(cxt, pubKeyAliceLabelA, plainText2) // enrico
+	cipherText, capsule := Encrypt(ctx, pubKeyAliceLabelA, plainText) // enrico
+	cipherText2, capsule2 := Encrypt(ctx, pubKeyAliceLabelA, plainText2) // enrico
 
-	testDecrypt := DecryptDirect(cxt, capsule, privKeyAliceLabelA, cipherText)
+	testDecrypt := DecryptDirect(ctx, capsule, privKeyAliceLabelA, cipherText)
 
 	if !reflect.DeepEqual(plainText, testDecrypt) {
 		t.Errorf("Direct decryption failed")
@@ -80,7 +146,7 @@ func TestAPIBasics2(t *testing.T) {
 
 	const threshold = 10
 	const numSplits = 20
-	kFragsForBob := SplitReKey(cxt, privKeyAliceLabelA, pubKeyBob, threshold, numSplits)
+	kFragsForBob := SplitReKey(ctx, privKeyAliceLabelA, pubKeyBob, threshold, numSplits)
 
 	cFragsForBob := make([]*CFrag, threshold)
 	dest := make([]*KFrag, threshold)
@@ -95,7 +161,7 @@ func TestAPIBasics2(t *testing.T) {
 	require.Equal(t, len(dest), threshold)
 
 	// success
-	testDecryptFrags := DecryptFragments(cxt, capsule, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText)
+	testDecryptFrags := DecryptFragments(ctx, capsule, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
 		t.Errorf("Re-encapsulated fragment decryption failed")
 	}
@@ -106,12 +172,12 @@ func TestAPIBasics2(t *testing.T) {
 			t.Errorf("It should be panic, cFragsForBob is not ReEncapsulated for capsule2")
 		}
 	}()
-	testDecryptFrags2 := DecryptFragments(cxt, capsule2, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText2)
+	testDecryptFrags2 := DecryptFragments(ctx, capsule2, cFragsForBob, privKeyBob, pubKeyAliceLabelA, cipherText2)
 	require.Nil(t, testDecryptFrags2)
 
 	// test for add policy to another Bob(Carol) without duplicated encryption
 	const threshold2 = 15
-	kFragsForCarol := SplitReKey(cxt, privKeyAliceLabelA, pubKeyCarol, threshold2, numSplits)
+	kFragsForCarol := SplitReKey(ctx, privKeyAliceLabelA, pubKeyCarol, threshold2, numSplits)
 
 	cFragsForCarol := make([]*CFrag, threshold2)
 	dest = make([]*KFrag, threshold2)
@@ -125,7 +191,7 @@ func TestAPIBasics2(t *testing.T) {
 	}
 	require.Equal(t, len(dest), threshold2)
 
-	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol, privKeyCarol, pubKeyAliceLabelA, cipherText)
+	testDecryptFrags = DecryptFragments(ctx, capsule, cFragsForCarol, privKeyCarol, pubKeyAliceLabelA, cipherText)
 	if !reflect.DeepEqual(plainText, testDecryptFrags) {
 		t.Errorf("Re-encapsulated fragment decryption failed 3")
 	}
@@ -136,7 +202,7 @@ func TestAPIBasics2(t *testing.T) {
 			t.Errorf("It should be panic, cFrags below threshold used")
 		}
 	}()
-	testDecryptFrags = DecryptFragments(cxt, capsule, cFragsForCarol[:threshold2-1], privKeyCarol, pubKeyAliceLabelA, cipherText)
+	testDecryptFrags = DecryptFragments(ctx, capsule, cFragsForCarol[:threshold2-1], privKeyCarol, pubKeyAliceLabelA, cipherText)
 }
 
 func ReEncapsulateWithProxyNodes(kFrags []*KFrag, capsule *Capsule, threshold, numSplits int) []*CFrag {
@@ -271,6 +337,135 @@ func TestAPIBasics3(t *testing.T) {
 }
 
 
+func TestAPIBasics4(t *testing.T) {
+
+	cxt := MakeDefaultContext()
+
+	// Label X
+	privKeyAliceLabelX := GenPrivateKey(cxt)
+	pubKeyAliceLabelX := privKeyAliceLabelX.GetPublicKey(cxt)
+
+	// Bob
+	privKeyBob := GenPrivateKey(cxt)
+	pubKeyBob := privKeyBob.GetPublicKey(cxt)
+
+	// Carol
+	privKeyCarol := GenPrivateKey(cxt)
+	pubKeyCarol := privKeyCarol.GetPublicKey(cxt)
+
+	data1 := []byte("Data 1")
+	data2 := []byte("Data 2")
+
+	// encrypt on Alice ( enrico )
+	EncryptedData1, capsule1 := Encrypt(cxt, pubKeyAliceLabelX, data1)
+	EncryptedData2, capsule2 := Encrypt(cxt, pubKeyAliceLabelX, data2)
+
+	const threshold = 15
+	const numSplits = 20
+
+	// split key on Alice, and distribute to proxy nodes
+	kFragsB := SplitReKey(cxt, privKeyAliceLabelX, pubKeyBob, threshold, numSplits)
+	kFragsC := SplitReKey(cxt, privKeyAliceLabelX, pubKeyCarol, threshold, numSplits)
+
+	// TODO: policy check
+	// Bob request cFrags to proxy nodes
+	cFragsB1 := ReEncapsulateWithProxyNodes(kFragsB, capsule1, threshold, numSplits)
+	cFragsB2 := ReEncapsulateWithProxyNodes(kFragsB, capsule2, threshold, numSplits)
+
+	// Carol request cFrags to proxy nodes
+	cFragsC1 := ReEncapsulateWithProxyNodes(kFragsC, capsule1, threshold, numSplits)
+	cFragsC2 := ReEncapsulateWithProxyNodes(kFragsC, capsule2, threshold, numSplits)
+
+	// Bad cases
+	//cFragsY1X := ReEncapsulateWithProxyNodes(kFragsY, capsule1X, threshold, numSplits)
+	//cFragsY2X := ReEncapsulateWithProxyNodes(kFragsY, capsule2X, threshold, numSplits)
+
+	// result
+
+	// success cases
+	testDecryptFragsB1, r := DecryptFragmentsWithRecover(cxt, capsule1, cFragsB1, privKeyBob, pubKeyAliceLabelX, EncryptedData1)
+	require.Nil(t, r)
+	require.Equal(t, data1, testDecryptFragsB1)
+
+	testDecryptFragsC1, r := DecryptFragmentsWithRecover(cxt, capsule1, cFragsC1, privKeyCarol, pubKeyAliceLabelX, EncryptedData1)
+	require.Nil(t, r)
+	require.Equal(t, data1, testDecryptFragsC1)
+
+
+	testDecryptFragsB2, r := DecryptFragmentsWithRecover(cxt, capsule2, cFragsB2, privKeyBob, pubKeyAliceLabelX, EncryptedData2)
+	require.Nil(t, r)
+	require.Equal(t, data2, testDecryptFragsB2)
+
+	testDecryptFragsC2, r := DecryptFragmentsWithRecover(cxt, capsule2, cFragsC2, privKeyCarol, pubKeyAliceLabelX, EncryptedData2)
+	require.Nil(t, r)
+	require.Equal(t, data2, testDecryptFragsC2)
+
+
+	d, r := DecryptFragmentsWithRecover(cxt, capsule1, cFragsC1, privKeyCarol, pubKeyAliceLabelX, EncryptedData2)
+	require.Equal(t, r, "Failed DEM decryption")
+	require.Nil(t, d)
+
+
+	//testDecryptFragsData2LabelX, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
+	//require.Nil(t, r)
+	//require.Equal(t, data2, testDecryptFragsData2LabelX)
+	//
+	//testDecryptFragsData1LabelY, r := DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsY1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	//require.Nil(t, r)
+	//require.Equal(t, data1, testDecryptFragsData1LabelY)
+	//
+	//testDecryptFragsData2LabelY, r := DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsY2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
+	//require.Nil(t, r)
+	//require.Equal(t, data2, testDecryptFragsData2LabelY)
+	//
+	//// fail cases
+	//d, r := DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithX)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsX1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithX)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//// fail, bad cases
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule1Y, cFragsX1Y, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
+	//require.Equal(t, r, "Failed DEM decryption")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithY)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule2Y, cFragsX2Y, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithY)
+	//require.Equal(t, r, "Failed DEM decryption")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelY, EncryptedData1WithY)
+	//require.Equal(t, r, "Failed DEM decryption")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule1X, cFragsY1X, privKeyBob, pubKeyAliceLabelX, EncryptedData1WithY)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelY, EncryptedData2WithX)
+	//require.Equal(t, r, "Failed DEM decryption")
+	//require.Nil(t, d)
+	//
+	//d, r = DecryptFragmentsWithRecover(cxt, capsule2X, cFragsY2X, privKeyBob, pubKeyAliceLabelX, EncryptedData2WithX)
+	//require.Equal(t, r, "Failed decapulation check")
+	//require.Nil(t, d)
+
+}
+
 // WIP
 //func TestAPIAdvanced(t *testing.T) {
 //	random := cryptorand.Reader
@@ -281,13 +476,13 @@ func TestAPIBasics3(t *testing.T) {
 //	require.Nil(t, err)
 //	pubKeyAliceRSA := privKeyAliceRSA.PublicKey
 //
-//	//cxt := MakeDefaultContext()
+//	//ctx := MakeDefaultContext()
 //
-//	//privKeyAlice := GenPrivateKey(cxt)
-//	//pubKeyAlice := privKeyAlice.GetPublicKey(cxt)
+//	//privKeyAlice := GenPrivateKey(ctx)
+//	//pubKeyAlice := privKeyAlice.GetPublicKey(ctx)
 //
-//	//privKeyBob := GenPrivateKey(cxt)
-//	//pubKeyBob := privKeyBob.GetPublicKey(cxt)
+//	//privKeyBob := GenPrivateKey(ctx)
+//	//pubKeyBob := privKeyBob.GetPublicKey(ctx)
 //
 //
 //	// create random symmetric symKey
@@ -320,8 +515,8 @@ func TestAPIBasics3(t *testing.T) {
 //
 //
 //
-//	//cipherText, capsule := Encrypt(cxt, pubKeyAlice, symKey)
-//	//testDecrypt := DecryptDirect(cxt, capsule, privKeyAlice, cipherText)
+//	//cipherText, capsule := Encrypt(ctx, pubKeyAlice, symKey)
+//	//testDecrypt := DecryptDirect(ctx, capsule, privKeyAlice, cipherText)
 //	//
 //	//if !reflect.DeepEqual(symKey, testDecrypt) {
 //	//	t.Errorf("Direct decryption failed")
@@ -341,7 +536,7 @@ func TestAPIBasics3(t *testing.T) {
 //
 //	//
 //	//const threshold = 10
-//	//kFrags := SplitReKey(cxt, privKeyAlice, pubKeyBob, threshold, 20)
+//	//kFrags := SplitReKey(ctx, privKeyAlice, pubKeyBob, threshold, 20)
 //	//
 //	//cFrags := make([]*CFrag, threshold)
 //	//
@@ -357,7 +552,7 @@ func TestAPIBasics3(t *testing.T) {
 //	//
 //	//require.Equal(t, len(dest), threshold)
 //	//
-//	//testDecryptFrags := DecryptFragments(cxt, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
+//	//testDecryptFrags := DecryptFragments(ctx, capsule, cFrags, privKeyBob, pubKeyAlice, cipherText)
 //	//if !reflect.DeepEqual(plainText, testDecryptFrags) {
 //	//	t.Errorf("Re-encapsulated fragment decryption failed")
 //	//}
